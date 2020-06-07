@@ -274,7 +274,7 @@ void MenuProxy::onWindowAdded(WId id)
         return;
     }
 
-    KWindowInfo info(id, NET::WMWindowType);
+    KWindowInfo info(id, NET::WMWindowType, NET::WM2WindowClass);
 
     NET::WindowType wType = info.windowType(NET::NormalMask | NET::DesktopMask | NET::DockMask |
                                             NET::ToolbarMask | NET::MenuMask | NET::DialogMask |
@@ -283,7 +283,7 @@ void MenuProxy::onWindowAdded(WId id)
 
     // Only top level windows typically have a menu bar, dialogs, such as settings don't
     if (wType != NET::Normal) {
-        qDebug() << "Ignoring window" << id << "of type" << wType;
+        qDebug() << "Ignoring window class name: "<<info.windowClassName()<<", id: " << id << ", type: " << wType;
         return;
     }
 

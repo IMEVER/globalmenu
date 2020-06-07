@@ -28,6 +28,7 @@
 #include "menuimporteradaptor.h"
 #include "dbusmenutypes_p.h"
 
+#include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusObjectPath>
 #include <QDBusServiceWatcher>
@@ -75,6 +76,12 @@ void MenuImporter::RegisterWindow(WId id, const QDBusObjectPath& path)
 
     // Menu can try to register, right click in gimp for example
     if (info.windowType(mask) & (NET::Menu|NET::DropdownMenu|NET::PopupMenu)) {
+        qDebug() << "Ignoring window class name: "<<info.windowClassName()<<", id: " << id << ", type: " << info.windowType(mask);
+        return;
+    }
+
+    if (info.windowType(mask) != NET::Normal) {
+        qDebug() << "Ignoring window class name: "<<info.windowClassName()<<", id: " << id << ", type: " << info.windowType(mask);
         return;
     }
 
