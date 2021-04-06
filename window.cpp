@@ -31,12 +31,12 @@
 #include <algorithm>
 
 #include "actions.h"
-#include "dbusmenuadaptor.h"
 #include "icons.h"
 #include "menu.h"
 #include "utils.h"
 
 #include "dbusmenushortcut_p.h"
+#include "dbusmenuadaptor.h"
 
 static const QString s_orgGtkActions = QStringLiteral("org.gtk.Actions");
 static const QString s_orgGtkMenus = QStringLiteral("org.gtk.Menus");

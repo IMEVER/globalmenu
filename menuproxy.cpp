@@ -41,7 +41,7 @@
 
 #include "window.h"
 
-static const QString s_ourServiceName = QStringLiteral("org.kde.plasma.gmenu_dbusmenu_proxy");
+static const QString s_ourServiceName = QStringLiteral("me.imever.dbusmenu_proxy");
 
 static const QString s_dbusMenuRegistrar = QStringLiteral("com.canonical.AppMenu.Registrar");
 
@@ -129,10 +129,6 @@ bool MenuProxy::init()
     const auto windows = KWindowSystem::windows();
     for (WId id : windows) {
         onWindowAdded(id);
-    }
-
-    if (m_windows.isEmpty()) {
-        qDebug() << "Up and running but no windows with menus in sight";
     }
 
     return true;

@@ -42,7 +42,6 @@ static const char* DBUS_OBJECT_PATH = "/com/canonical/AppMenu/Registrar";
 static const QByteArray s_x11AppMenuServiceNamePropertyName = QByteArrayLiteral("_KDE_NET_WM_APPMENU_SERVICE_NAME");
 static const QByteArray s_x11AppMenuObjectPathPropertyName = QByteArrayLiteral("_KDE_NET_WM_APPMENU_OBJECT_PATH");
 
-
 MenuImporter::MenuImporter(QObject* parent)
 : QObject(parent)
 , m_serviceWatcher(new QDBusServiceWatcher(this))
@@ -76,7 +75,6 @@ void MenuImporter::RegisterWindow(WId id, const QDBusObjectPath& path)
 
     // Menu can try to register, right click in gimp for example
     if (info.windowType(mask) & (NET::Menu|NET::DropdownMenu|NET::PopupMenu)) {
-        qDebug() << "Ignoring window class name: "<<info.windowClassName()<<", id: " << id << ", type: " << info.windowType(mask);
         return;
     }
 
@@ -98,7 +96,6 @@ void MenuImporter::RegisterWindow(WId id, const QDBusObjectPath& path)
     if (!m_serviceWatcher->watchedServices().contains(service)) {
         m_serviceWatcher->addWatchedService(service);
     }
-
     auto *c = QX11Info::connection();
 
     static xcb_atom_t s_serviceNameAtom = XCB_ATOM_NONE;

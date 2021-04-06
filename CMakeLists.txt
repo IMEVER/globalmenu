@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 
-set(PROJECT dde-globalmenu-service)
-
+set(PROJECT globalmenu)
 project(${PROJECT})
 
 remove_definitions(-DQT_NO_CAST_FROM_ASCII -DQT_STRICT_ITERATORS -DQT_NO_CAST_FROM_BYTEARRAY -DQT_NO_KEYWORDS)
@@ -22,10 +21,10 @@ find_package(Qt5DBus REQUIRED)
 find_package(KF5WindowSystem REQUIRED)
 find_package(Qt5X11Extras REQUIRED)
 
-set(SRCS main.cpp
-        menuimporter.h menuimporter.cpp
+set(SRCS
         dbusmenutypes_p.h dbusmenutypes_p.cpp
         dbusmenushortcut_p.h dbusmenushortcut_p.cpp
+        # menuimporter.h menuimporter.cpp
 
         # gmenu dbus proxy
         utils.h utils.cpp
@@ -38,13 +37,10 @@ set(SRCS main.cpp
         config-X11.h
         )
 
-qt5_add_dbus_adaptor(SRCS com.canonical.AppMenu.Registrar.xml
-    menuimporter.h MenuImporter menuimporteradaptor MenuImporterAdaptor)
-
 qt5_add_dbus_adaptor(SRCS com.canonical.dbusmenu.xml window.h Window)
 
-
-add_executable(${PROJECT} ${SRCS})
+add_library(${PROJECT} STATIC ${SRCS})
+# add_executable(${PROJECT} main.cpp)
 
 target_include_directories(${PROJECT} PUBLIC
         ${Qt5Widgets_INCLUDE_DIRS}
@@ -59,3 +55,9 @@ target_link_libraries(${PROJECT}
         KF5::WindowSystem
         xcb
         )
+# target_include_directories(${PROJECT} PUBLIC 
+        # ${Qt5Widgets_INCLUDE_DIRS}
+        # ${Qt5DBus_INCLUDE_DIRS}
+        # ${Qt5X11Extras_INCLUDE_DIRS}
+        # )
+# target_link_libraries(${PROJECT} ${LIBMENU})
