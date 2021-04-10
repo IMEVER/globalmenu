@@ -41,7 +41,7 @@
 
 #include "window.h"
 
-static const QString s_ourServiceName = QStringLiteral("me.imever.dbusmenu_proxy");
+static const QString s_ourServiceName = QStringLiteral("me.imever.dde.TopPanel");
 
 static const QString s_dbusMenuRegistrar = QStringLiteral("com.canonical.AppMenu.Registrar");
 
@@ -98,11 +98,11 @@ MenuProxy::MenuProxy()
     m_writeGtk2SettingsTimer->setInterval(1000);
     connect(m_writeGtk2SettingsTimer, &QTimer::timeout, this, &MenuProxy::writeGtk2Settings);
 
-    auto startGtk2SettingsTimer = [this] {
-        if (!m_writeGtk2SettingsTimer->isActive()) {
-            m_writeGtk2SettingsTimer->start();
-        }
-    };
+    // auto startGtk2SettingsTimer = [this] {
+    //     if (!m_writeGtk2SettingsTimer->isActive()) {
+    //         m_writeGtk2SettingsTimer->start();
+    //     }
+    // };
 
 //    connect(m_gtk2RcWatch, &KDirWatch::created, this, startGtk2SettingsTimer);
 //    connect(m_gtk2RcWatch, &KDirWatch::dirty, this, startGtk2SettingsTimer);
@@ -116,11 +116,6 @@ MenuProxy::~MenuProxy()
 
 bool MenuProxy::init()
 {
-    if (!QDBusConnection::sessionBus().registerService(s_ourServiceName)) {
-        qDebug() << "Failed to register DBus service" << s_ourServiceName;
-        return false;
-    }
-
     enableGtkSettings(true);
 
     connect(KWindowSystem::self(), &KWindowSystem::windowAdded, this, &MenuProxy::onWindowAdded);
@@ -137,8 +132,6 @@ bool MenuProxy::init()
 void MenuProxy::teardown()
 {
     enableGtkSettings(false);
-
-    QDBusConnection::sessionBus().unregisterService(s_ourServiceName);
 
     disconnect(KWindowSystem::self(), &KWindowSystem::windowAdded, this, &MenuProxy::onWindowAdded);
     disconnect(KWindowSystem::self(), &KWindowSystem::windowRemoved, this, &MenuProxy::onWindowRemoved);
@@ -202,7 +195,7 @@ void MenuProxy::writeGtk2Settings()
             continue;
         }
 
-        gtkModules = line.mid(equalSignIdx + 1).split(QLatin1Char(':'), QString::SkipEmptyParts);
+        gtkModules = line.mid(equalSignIdx + 1).split(QLatin1Char(':'), Qt::SkipEmptyParts);
 
         break;
     }

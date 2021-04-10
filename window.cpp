@@ -57,7 +57,16 @@ Window::Window(const QString &serviceName)
     DBusMenuTypes_register();
 }
 
-Window::~Window() = default;
+Window::~Window()
+{
+    delete m_applicationMenu;
+    delete m_menuBar;
+    delete m_currentMenu;
+
+    delete m_applicationActions;
+    delete m_unityActions;
+    delete m_windowActions;
+}
 
 void Window::init()
 {
@@ -440,7 +449,7 @@ uint Window::GetLayout(int parentId, int recursionDepth, const QStringList &prop
 
     if (!m_currentMenu->hasSubscription(subscription)) {
         // let's serve multiple similar requests in one go once we've processed them
-        m_pendingGetLayouts.insertMulti(subscription, message());
+        m_pendingGetLayouts.insert(subscription, message());
         setDelayedReply(true);
 
         m_currentMenu->start(subscription);
