@@ -24,7 +24,6 @@ find_package(Qt5X11Extras REQUIRED)
 set(SRCS
         dbusmenutypes_p.h dbusmenutypes_p.cpp
         dbusmenushortcut_p.h dbusmenushortcut_p.cpp
-        # menuimporter.h menuimporter.cpp
 
         # gmenu dbus proxy
         utils.h utils.cpp
@@ -40,7 +39,6 @@ set(SRCS
 qt5_add_dbus_adaptor(SRCS com.canonical.dbusmenu.xml window.h Window)
 
 add_library(${PROJECT} STATIC ${SRCS})
-# add_executable(${PROJECT} main.cpp)
 
 target_include_directories(${PROJECT} PUBLIC
         ${Qt5Widgets_INCLUDE_DIRS}
@@ -55,9 +53,3 @@ target_link_libraries(${PROJECT}
         KF5::WindowSystem
         xcb
         )
-# target_include_directories(${PROJECT} PUBLIC 
-        # ${Qt5Widgets_INCLUDE_DIRS}
-        # ${Qt5DBus_INCLUDE_DIRS}
-        # ${Qt5X11Extras_INCLUDE_DIRS}
-        # )
-# target_link_libraries(${PROJECT} ${LIBMENU})

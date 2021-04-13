@@ -61,7 +61,6 @@ Window::~Window()
 {
     delete m_applicationMenu;
     delete m_menuBar;
-    delete m_currentMenu;
 
     delete m_applicationActions;
     delete m_unityActions;
