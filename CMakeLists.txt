@@ -33,7 +33,6 @@ set(SRCS
         icons.h icons.cpp
         gdbusmenutypes_p.h gdbusmenutypes_p.cpp
         actions.h actions.cpp
-        config-X11.h
         )
 
 qt5_add_dbus_adaptor(SRCS com.canonical.dbusmenu.xml window.h Window)

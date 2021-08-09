@@ -32,6 +32,7 @@ class QTimer;
 class KDirWatch;
 
 class Window;
+class DBusRegistrar;
 
 class MenuProxy : public QObject
 {
@@ -73,5 +74,6 @@ private:
     QTimer *m_writeGtk2SettingsTimer;
 
     bool m_enabled = false;
+    DBusRegistrar *registrar;
 
 };

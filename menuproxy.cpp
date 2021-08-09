@@ -19,8 +19,6 @@
 
 #include "menuproxy.h"
 
-#include "config-X11.h"
-
 #include <QByteArray>
 #include <QCoreApplication>
 #include <QDBusConnection>
@@ -41,6 +39,8 @@
 
 #include "window.h"
 
+#include "../appmenu/dbus_registrar.h"
+
 static const QString s_ourServiceName = QStringLiteral("me.imever.dde.TopPanel");
 
 static const QString s_dbusMenuRegistrar = QStringLiteral("com.canonical.AppMenu.Registrar");
@@ -53,9 +53,6 @@ static const QByteArray s_gtkWindowObjectPath = QByteArrayLiteral("_GTK_WINDOW_O
 static const QByteArray s_gtkMenuBarObjectPath = QByteArrayLiteral("_GTK_MENUBAR_OBJECT_PATH");
 // that's the generic app menu with Help and Options and will be used if window doesn't have a fully-blown menu bar
 static const QByteArray s_gtkAppMenuObjectPath = QByteArrayLiteral("_GTK_APP_MENU_OBJECT_PATH");
-
-static const QByteArray s_kdeNetWmAppMenuServiceName = QByteArrayLiteral("_KDE_NET_WM_APPMENU_SERVICE_NAME");
-static const QByteArray s_kdeNetWmAppMenuObjectPath = QByteArrayLiteral("_KDE_NET_WM_APPMENU_OBJECT_PATH");
 
 static const QString s_gtkModules = QStringLiteral("gtk-modules");
 static const QString s_appMenuGtkModule = QStringLiteral("appmenu-gtk-module");
@@ -97,7 +94,7 @@ MenuProxy::MenuProxy()
     m_writeGtk2SettingsTimer->setSingleShot(true);
     m_writeGtk2SettingsTimer->setInterval(1000);
     connect(m_writeGtk2SettingsTimer, &QTimer::timeout, this, &MenuProxy::writeGtk2Settings);
-
+    registrar = new DBusRegistrar(this);
     // auto startGtk2SettingsTimer = [this] {
     //     if (!m_writeGtk2SettingsTimer->isActive()) {
     //         m_writeGtk2SettingsTimer->start();
@@ -184,6 +181,9 @@ void MenuProxy::writeGtk2Settings()
 
         const QString line = QString::fromUtf8(rawLine.trimmed());
 
+        if(line.isEmpty())
+            continue;
+
         if (!line.startsWith(s_gtkModules)) {
             // keep line as-is
             content += rawLine;
@@ -203,7 +203,7 @@ void MenuProxy::writeGtk2Settings()
     addOrRemoveAppMenuGtkModule(gtkModules);
 
     if (!gtkModules.isEmpty()) {
-        content += QStringLiteral("%1=%2").arg(s_gtkModules, gtkModules.join(QLatin1Char(':'))).toUtf8();
+        content += QStringLiteral("\n%1=%2").arg(s_gtkModules, gtkModules.join(QLatin1Char(':'))).toUtf8();
     }
 
     qDebug() << "  gtk-modules:" << gtkModules;
@@ -305,12 +305,10 @@ void MenuProxy::onWindowAdded(WId id)
     connect(window, &Window::requestWriteWindowProperties, this, [this, window] {
        Q_ASSERT(!window->proxyObjectPath().isEmpty());
 
-       writeWindowProperty(window->winId(), s_kdeNetWmAppMenuServiceName, s_ourServiceName.toUtf8());
-       writeWindowProperty(window->winId(), s_kdeNetWmAppMenuObjectPath, window->proxyObjectPath().toUtf8());
+       this->registrar->RegisterWindow(window->winId(), QDBusObjectPath(window->proxyObjectPath()));
     });
     connect(window, &Window::requestRemoveWindowProperties, this, [this, window] {
-        writeWindowProperty(window->winId(), s_kdeNetWmAppMenuServiceName, QByteArray());
-        writeWindowProperty(window->winId(), s_kdeNetWmAppMenuObjectPath, QByteArray());
+        this->registrar->UnregisterWindow(window->winId());
     });
 
     window->init();
