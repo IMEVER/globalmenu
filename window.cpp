@@ -38,9 +38,6 @@
 #include "dbusmenushortcut_p.h"
 #include "dbusmenuadaptor.h"
 
-static const QString s_orgGtkActions = QStringLiteral("org.gtk.Actions");
-static const QString s_orgGtkMenus = QStringLiteral("org.gtk.Menus");
-
 static const QString s_applicationActionsPrefix = QStringLiteral("app.");
 static const QString s_unityActionsPrefix = QStringLiteral("unity.");
 static const QString s_windowActionsPrefix = QStringLiteral("win.");
@@ -653,7 +650,9 @@ QVariantMap Window::gMenuToDBusMenuProperties(const QVariantMap &source) const
         icon = source.value(QStringLiteral("verb-icon")).toString();
     }
 
-    icon = Icons::actionIcon(actionName);
+    if(icon.isEmpty())
+        icon = Icons::actionIcon(actionName);
+
     if (!icon.isEmpty()) {
         result.insert(QStringLiteral("icon-name"), icon);
     }

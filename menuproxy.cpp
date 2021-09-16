@@ -316,6 +316,7 @@ void MenuProxy::onWindowAdded(WId id)
 
 void MenuProxy::onWindowRemoved(WId id)
 {
+    this->registrar->UnregisterWindow(id);
     // no need to cleanup() (which removes window properties) when the window is gone, delete right away
     delete m_windows.take(id);
 }
