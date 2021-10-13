@@ -56,12 +56,20 @@ Window::Window(const QString &serviceName)
 
 Window::~Window()
 {
-    delete m_applicationMenu;
-    delete m_menuBar;
+    if(m_applicationMenu)
+        delete m_applicationMenu;
 
-    delete m_applicationActions;
-    delete m_unityActions;
-    delete m_windowActions;
+    if(m_menuBar)
+        delete m_menuBar;
+
+    if(m_applicationActions)
+        delete m_applicationActions;
+
+    if(m_unityActions)
+        delete m_unityActions;
+
+    if(m_windowActions)
+        delete m_windowActions;
 }
 
 void Window::init()
