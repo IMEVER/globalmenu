@@ -264,6 +264,8 @@ void MenuProxy::onWindowAdded(WId id)
     }
 
     KWindowInfo info(id, NET::WMWindowType, NET::WM2WindowClass);
+    if(!info.valid())
+        return;
 
     NET::WindowType wType = info.windowType(NET::NormalMask | NET::DesktopMask | NET::DockMask |
                                             NET::ToolbarMask | NET::MenuMask | NET::DialogMask |
@@ -317,7 +319,8 @@ void MenuProxy::onWindowAdded(WId id)
 void MenuProxy::onWindowRemoved(WId id)
 {
     // no need to cleanup() (which removes window properties) when the window is gone, delete right away
-    delete m_windows.take(id);
+    if(m_windows.contains(id))
+        delete m_windows.take(id);
 }
 
 QByteArray MenuProxy::getWindowPropertyString(WId id, const QByteArray &name)
