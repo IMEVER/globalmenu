@@ -88,9 +88,9 @@ void Menu::start(uint id)
             const bool hadMenu = !m_menus.isEmpty();
 
             const auto menus = reply.value();
-            for (auto menu : menus) {
-                m_menus[menu.id].append(menus);
-            }
+            // for (auto menu : menus) {
+            //     m_menus[menu.id].append(menus);
+            // }
 
             // LibreOffice on startup fails to give us some menus right away, we'll also subscribe in onMenuChanged() if necessary
             if (menus.isEmpty()) {
@@ -98,6 +98,7 @@ void Menu::start(uint id)
                 return;
             }
 
+            m_menus[id].append(menus);
             // TODO are we subscribed to all it returns or just to the ones we requested?
             m_subscriptions.append(id);
 
@@ -131,9 +132,15 @@ void Menu::stop(const QList<uint> &ids)
             // remove all subscriptions that we unsubscribed from
             // TODO is there a nicer algorithm for that?
             // TODO remove all m_menus also?
-            m_subscriptions.erase(std::remove_if(m_subscriptions.begin(), m_subscriptions.end(),
-                                      std::bind(&QList<uint>::contains, m_subscriptions, std::placeholders::_1)),
-                                  m_subscriptions.end());
+            // m_subscriptions.erase(std::remove_if(m_subscriptions.begin(), m_subscriptions.end(),
+            //                           std::bind(&QList<uint>::contains, m_subscriptions, std::placeholders::_1)),
+            //                       m_subscriptions.end());
+
+            for(auto id : ids)
+            {
+                m_subscriptions.removeOne(id);
+                m_menus.remove(id);
+            }
 
             if (m_subscriptions.isEmpty()) {
                 emit menuDisappeared();
@@ -208,44 +215,17 @@ QVariantMap Menu::getItem(int subscription, int sectionId, int index) const
         return QVariantMap();
     }
 
-    // 0 is the menu itself, items start at 1
-    return items.at(index - 1);
+    return items.at(index);
 }
 
 void Menu::onMenuChanged(const GMenuChangeList &changes)
 {
     const bool hadMenu = !m_menus.isEmpty();
 
-    QVector<uint> dirtyMenus;
-    QVector<uint> dirtyItems;
+    QSet<uint> dirtyMenus;
+    QSet<uint> dirtyItems;
 
     for (const auto &change : changes) {
-        auto updateSection = [&](GMenuItem &section) {
-            // Check if the amount of inserted items is identical to the items to be removed,
-            // just update the existing items and signal a change for that.
-            // LibreOffice tends to do that e.g. to update its Undo menu entry
-            if (change.itemsToRemoveCount == change.itemsToInsert.count()) {
-                for (int i = 0; i < change.itemsToInsert.count(); ++i) {
-                    const auto &newItem = change.itemsToInsert.at(i);
-
-                    section.items[change.changePosition + i] = newItem;
-
-                    // 0 is the menu itself, items start at 1
-                    dirtyItems.append(Utils::treeStructureToInt(change.subscription, change.menu, change.changePosition + i + 1));
-                }
-            } else {
-                for (int i = 0; i < change.itemsToRemoveCount; ++i) {
-                    section.items.removeAt(change.changePosition); // TODO bounds check
-                }
-
-                for (int i = 0; i < change.itemsToInsert.count(); ++i) {
-                    section.items.insert(change.changePosition + i, change.itemsToInsert.at(i));
-                }
-
-                dirtyMenus.append(Utils::treeStructureToInt(change.subscription, change.menu, 0));
-            }
-        };
-
         // shouldn't happen, it says only Start() subscribes to changes
         if (!m_subscriptions.contains(change.subscription)) {
             qDebug() << "Got menu change for menu" << change.subscription << "that we are not subscribed to, subscribing now";
@@ -254,25 +234,76 @@ void Menu::onMenuChanged(const GMenuChangeList &changes)
             continue;
         }
 
+        auto recurseRemove = [this](QVariantMap source) {
+            QList<uint> ids;
+            std::function<void(QVariantMap)> reFind = [&ids, this, &reFind](QVariantMap source){
+                if(source.contains(QLatin1String(":submenu")))
+                {
+                    GMenuSection gmenuSection = qdbus_cast<GMenuSection>(source.value(QLatin1String(":submenu")));
+                    if(m_menus.contains(gmenuSection.subscription))
+                    {
+                        for(auto item : m_menus.value(gmenuSection.subscription))
+                        {
+                            for(auto subSource : item.items)
+                                reFind(subSource);
+                        }
+                        ids.append(gmenuSection.subscription);
+                    }
+                }
+            };
+
+            reFind(source);
+
+            if(!ids.isEmpty())
+                stop(ids);
+        };
+
+        auto updateSection = [&change, &dirtyItems, &dirtyMenus, &recurseRemove](GMenuItem &section) {
+            // Check if the amount of inserted items is identical to the items to be removed,
+            // just update the existing items and signal a change for that.
+            // LibreOffice tends to do that e.g. to update its Undo menu entry
+            if (change.itemsToRemoveCount == change.itemsToInsert.count()) {
+                for (int i = 0; i < change.itemsToInsert.count(); ++i) {
+                    section.items[change.changePosition + i] = change.itemsToInsert.at(i);
+
+                    // 0 is the menu itself, items start at 1
+                    dirtyItems.insert(Utils::treeStructureToInt(change.subscription, change.section, change.changePosition + i));
+                }
+            } else {
+                for (int i = 0; i < change.itemsToRemoveCount; ++i) {
+                    if(section.items.count() > change.changePosition)
+                    {
+                        QVariantMap source = section.items.takeAt(change.changePosition);
+                        // recurseRemove(source);
+                    } else
+                        break;
+                }
+
+                for (int i = 0; i < change.itemsToInsert.count(); ++i) {
+                    section.items.insert(change.changePosition + i, change.itemsToInsert.at(i));
+                }
+
+                dirtyMenus.insert(Utils::treeStructureToInt(change.subscription, change.section, 0));
+            }
+        };
+
         auto &menu = m_menus[change.subscription];
 
         bool sectionFound = false;
         // TODO findSectionRef
         for (GMenuItem &section : menu) {
-            if (section.section != change.menu) {
-                continue;
+            if (section.section == change.section) {
+                qDebug() << "Updating existing section" << change.section << "in subscription" << change.subscription;
+
+                sectionFound = true;
+                updateSection(section);
+                break;
             }
-
-            qDebug() << "Updating existing section" << change.menu << "in subscription" << change.subscription;
-
-            sectionFound = true;
-            updateSection(section);
-            break;
         }
 
         // Insert new section
         if (!sectionFound) {
-            qDebug() << "Creating new section" << change.menu << "in subscription" << change.subscription;
+            qDebug() << "Creating new section" << change.section << "in subscription" << change.subscription;
 
             if (change.itemsToRemoveCount > 0) {
                 qDebug() << "Menu change requested to remove items from a new (and as such empty) section";
@@ -280,7 +311,7 @@ void Menu::onMenuChanged(const GMenuChangeList &changes)
 
             GMenuItem newSection;
             newSection.id = change.subscription;
-            newSection.section = change.menu;
+            newSection.section = change.section;
             updateSection(newSection);
             menu.append(newSection);
         }
@@ -293,16 +324,18 @@ void Menu::onMenuChanged(const GMenuChangeList &changes)
         emit menuDisappeared();
     }
 
-    if (!dirtyItems.isEmpty()) {
+    if (!dirtyItems.isEmpty())
         emit itemsChanged(dirtyItems);
-    }
 
-    emit menusChanged(dirtyMenus);
+    if(!dirtyMenus.isEmpty())
+        emit menusChanged(dirtyMenus);
 }
 
 void Menu::actionsChanged(const QStringList &dirtyActions, const QString &prefix)
 {
-    auto forEachMenuItem = [this](const std::function<bool(int subscription, int section, int index, const QVariantMap &item)> &cb) {
+    QSet<uint> dirtyItems;
+
+    auto forEachMenuItem = [this, &dirtyItems](const QString prefixedAction) {
         for (auto it = m_menus.constBegin(), end = m_menus.constEnd(); it != end; ++it) {
             const int subscription = it.key();
 
@@ -310,43 +343,23 @@ void Menu::actionsChanged(const QStringList &dirtyActions, const QString &prefix
                 const int section = menu.section;
 
                 int count = 0;
-
                 const auto items = menu.items;
                 for (const auto &item : items) {
-                    ++count; // 0 is a menu, entries start at 1
-
-                    if (!cb(subscription, section, count, item)) {
-                        goto loopExit; // hell yeah
-                        break;
+                    if (Utils::itemActionName(item) == prefixedAction) {
+                        dirtyItems.insert(Utils::treeStructureToInt(subscription, section, count));
+                        return;
                     }
+                    ++count;
                 }
             }
         }
-
-        loopExit: // loop exit
-        return;
     };
 
-    // now find in which menus these actions are and emit a change accordingly
-    QVector<uint> dirtyItems;
-
     for (const QString &action : dirtyActions) {
-        const QString prefixedAction = prefix + action;
-
-        forEachMenuItem([ &prefixedAction, &dirtyItems](int subscription, int section, int index, const QVariantMap &item) {
-            const QString actionName = Utils::itemActionName(item);
-
-            if (actionName == prefixedAction) {
-                dirtyItems.append(Utils::treeStructureToInt(subscription, section, index));
-                return false; // break
-            }
-
-            return true; // continue
-        });
+        forEachMenuItem(prefix + action);
     }
 
-    if (!dirtyItems.isEmpty()) {
+    if (!dirtyItems.isEmpty())
         emit itemsChanged(dirtyItems);
-    }
 }
 

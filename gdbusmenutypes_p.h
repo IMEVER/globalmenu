@@ -52,7 +52,7 @@ Q_DECLARE_METATYPE(GMenuItemList);
 struct GMenuSection
 {
     uint subscription;
-    uint menu;
+    uint section;
 };
 Q_DECLARE_METATYPE(GMenuSection);
 
@@ -63,7 +63,7 @@ const QDBusArgument &operator>>(const QDBusArgument &argument, GMenuSection &ite
 struct GMenuChange
 {
     uint subscription;
-    uint menu;
+    uint section;
 
     uint changePosition;
     uint itemsToRemoveCount;

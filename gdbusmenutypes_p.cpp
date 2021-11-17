@@ -43,7 +43,7 @@ const QDBusArgument &operator>>(const QDBusArgument &argument, GMenuItem &item)
 QDBusArgument &operator<<(QDBusArgument &argument, const GMenuSection &item)
 {
     argument.beginStructure();
-    argument << item.subscription << item.menu;
+    argument << item.subscription << item.section;
     argument.endStructure();
     return argument;
 }
@@ -51,7 +51,7 @@ QDBusArgument &operator<<(QDBusArgument &argument, const GMenuSection &item)
 const QDBusArgument &operator>>(const QDBusArgument &argument, GMenuSection &item)
 {
     argument.beginStructure();
-    argument >> item.subscription >> item.menu;
+    argument >> item.subscription >> item.section;
     argument.endStructure();
     return argument;
 }
@@ -60,7 +60,7 @@ const QDBusArgument &operator>>(const QDBusArgument &argument, GMenuSection &ite
 QDBusArgument &operator<<(QDBusArgument &argument, const GMenuChange &item)
 {
     argument.beginStructure();
-    argument << item.subscription << item.menu << item.changePosition << item.itemsToRemoveCount << item.itemsToInsert;
+    argument << item.subscription << item.section << item.changePosition << item.itemsToRemoveCount << item.itemsToInsert;
     argument.endStructure();
     return argument;
 }
@@ -68,7 +68,7 @@ QDBusArgument &operator<<(QDBusArgument &argument, const GMenuChange &item)
 const QDBusArgument &operator>>(const QDBusArgument &argument, GMenuChange &item)
 {
     argument.beginStructure();
-    argument >> item.subscription >> item.menu >> item.changePosition >> item.itemsToRemoveCount >> item.itemsToInsert;
+    argument >> item.subscription >> item.section >> item.changePosition >> item.itemsToRemoveCount >> item.itemsToInsert;
     argument.endStructure();
     return argument;
 }

@@ -318,10 +318,12 @@ void MenuProxy::onWindowAdded(WId id)
 
 void MenuProxy::onWindowRemoved(WId id)
 {
-    this->registrar->UnregisterWindow(id);
     // no need to cleanup() (which removes window properties) when the window is gone, delete right away
     if(m_windows.contains(id))
+    {
+        this->registrar->UnregisterWindow(id);
         delete m_windows.take(id);
+    }
 }
 
 QByteArray MenuProxy::getWindowPropertyString(WId id, const QByteArray &name)

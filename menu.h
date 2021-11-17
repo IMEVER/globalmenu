@@ -21,7 +21,7 @@
 
 #include <QObject>
 #include <QString>
-#include <QVector>
+#include <QSet>
 
 #include "gdbusmenutypes_p.h"
 #include "dbusmenutypes_p.h"
@@ -59,8 +59,8 @@ signals:
     void subscribed(uint id);
     void failedToSubscribe(uint id);
 
-    void itemsChanged(const QVector<uint> &itemIds);
-    void menusChanged(const QVector<uint> &menuIds);
+    void itemsChanged(const QSet<uint> &itemIds);
+    void menusChanged(const QSet<uint> &menuIds);
 
 private slots:
     void onMenuChanged(const GMenuChangeList &changes);

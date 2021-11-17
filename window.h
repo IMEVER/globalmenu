@@ -22,8 +22,9 @@
 #include <QObject>
 #include <QDBusContext>
 #include <QString>
-#include <QVector>
+#include <QSet>
 #include <QWindow> // for WId
+#include <QPair>
 
 #include <functional>
 
@@ -103,8 +104,8 @@ private:
     void triggerAction(const QString &name, const QVariant &target, uint timestamp = 0);
     Actions *getActionsForAction(const QString &name, QString &lookupName) const;
 
-    void menuChanged(const QVector<uint> &menuIds);
-    void menuItemsChanged(const QVector<uint> &itemIds);
+    void menuChanged(const QSet<uint> &menuIds);
+    void menuItemsChanged(const QSet<uint> &itemIds);
 
     void onActionsChanged(const QStringList &dirty, const QString &prefix);
     void onMenuSubscribed(uint id);

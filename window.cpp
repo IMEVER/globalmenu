@@ -242,36 +242,34 @@ void Window::initMenu()
     m_menuInited = true;
 }
 
-void Window::menuItemsChanged(const QVector<uint> &itemIds)
+void Window::menuItemsChanged(const QSet<uint> &itemIds)
 {
-    if (qobject_cast<Menu*>(sender()) != m_currentMenu) {
-        return;
+    if (qobject_cast<Menu*>(sender()) == m_currentMenu) {
+        DBusMenuItemList items;
+
+        for (uint id : itemIds) {
+            const auto newItem = m_currentMenu->getItem(id);
+
+            DBusMenuItem dBusItem{
+                // 0 is menu, items start at 1
+                static_cast<int>(id),
+                gMenuToDBusMenuProperties(newItem)
+            };
+            items.append(dBusItem);
+        }
+
+        emit ItemsPropertiesUpdated(items, {});
     }
-
-    DBusMenuItemList items;
-
-    for (uint id : itemIds) {
-        const auto newItem = m_currentMenu->getItem(id);
-
-        DBusMenuItem dBusItem{
-            // 0 is menu, items start at 1
-            static_cast<int>(id),
-            gMenuToDBusMenuProperties(newItem)
-        };
-        items.append(dBusItem);
-    }
-
-    emit ItemsPropertiesUpdated(items, {});
 }
 
-void Window::menuChanged(const QVector<uint> &menuIds)
+void Window::menuChanged(const QSet<uint> &menuIds)
 {
-    if (qobject_cast<Menu*>(sender()) != m_currentMenu) {
-        return;
-    }
-
-    for (uint menu : menuIds) {
-        emit LayoutUpdated(3 /*revision*/, menu);
+    if (qobject_cast<Menu*>(sender()) == m_currentMenu) {
+        for (uint id : menuIds) {
+            int subscription, section, index;
+            Utils::intToTreeStructure(id, subscription, section, index);
+            emit LayoutUpdated(3 /*revision*/, subscription);
+        }
     }
 }
 
@@ -285,7 +283,7 @@ void Window::onMenuSubscribed(uint id)
                 auto reply = pendingReply.createReply();
 
                 DBusMenuLayoutItem item;
-                uint revision = GetLayout(Utils::treeStructureToInt(id, 0, 0), 0, {}, item);
+                uint revision = GetLayout(Utils::treeStructureToInt(id, 0, 0), 1, {}, item);
 
                 reply << revision << QVariant::fromValue(item);
 
@@ -438,18 +436,12 @@ DBusMenuItemList Window::GetGroupProperties(const QList<int> &ids, const QString
 
 uint Window::GetLayout(int parentId, int recursionDepth, const QStringList &propertyNames, DBusMenuLayoutItem &dbusItem)
 {
-    Q_UNUSED(recursionDepth); // TODO
-    Q_UNUSED(propertyNames);
-
-    int subscription;
-    int sectionId;
-    int index;
-
-    Utils::intToTreeStructure(parentId, subscription, sectionId, index);
-
     if (!m_currentMenu) {
         return 1;
     }
+
+    int subscription, sectionId, indexId;
+    Utils::intToTreeStructure(parentId, subscription, sectionId, indexId);
 
     if (!m_currentMenu->hasSubscription(subscription)) {
         // let's serve multiple similar requests in one go once we've processed them
@@ -461,91 +453,101 @@ uint Window::GetLayout(int parentId, int recursionDepth, const QStringList &prop
     }
 
     bool ok;
-    const GMenuItem section = m_currentMenu->getSection(subscription, sectionId, &ok);
+    GMenuItem section = m_currentMenu->getSection(subscription, sectionId, &ok);
 
-    if (!ok) {
-        qDebug() << "There is no section on" << subscription << "at" << sectionId << "with" << parentId;
+    if (!ok || (section.items.count() < indexId)) {
+        qDebug() << "There is no section on" << subscription << "at" << 0 << "with" << indexId;
         return 1;
     }
 
-    // If a particular entry is requested, see what it is and resolve as necessary
-    // for example the "File" entry on root is 0,0,1 but is a menu reference to e.g. 1,0,0
-    // so resolve that and return the correct menu
-    if (index > 0) {
-        // non-zero index indicates item within a menu but the index in the list still starts at zero
-        if (section.items.count() < index) {
-            qDebug() << "Requested index" << index << "on" << subscription << "at" << sectionId << "with" << parentId << "is out of bounds";
-            return 0;
+    auto tmpItem = section.items.at(indexId);
+    if(tmpItem.contains(QLatin1String(":submenu")))
+    {
+        GMenuSection gmenuSection = qdbus_cast<GMenuSection>(tmpItem.value(QLatin1String(":submenu")));
+        subscription = gmenuSection.subscription;
+        sectionId = gmenuSection.section;
+        indexId = 0;
+
+        if (!m_currentMenu->hasSubscription(subscription)) {
+            // let's serve multiple similar requests in one go once we've processed them
+            m_pendingGetLayouts.insert(subscription, message());
+            setDelayedReply(true);
+
+            m_currentMenu->start(subscription);
+            return 1;
         }
 
-        const auto &requestedItem = section.items.at(index - 1);
+        section = m_currentMenu->getSection(subscription, sectionId, &ok);
 
-        auto it = requestedItem.constFind(QStringLiteral(":submenu"));
-        if (it != requestedItem.constEnd()) {
-            const GMenuSection gmenuSection = qdbus_cast<GMenuSection>(it->value<QDBusArgument>());
-            return GetLayout(Utils::treeStructureToInt(gmenuSection.subscription, gmenuSection.menu, 0), recursionDepth, propertyNames, dbusItem);
-        } else {
-            // TODO
-            return 0;
+        if (!ok || (section.items.count() < indexId)) {
+            qDebug() << "There is no section on" << subscription << "at" << 0 << "with" << indexId;
+            return 1;
         }
     }
 
-    dbusItem.id = parentId; // TODO
+    dbusItem.id = Utils::treeStructureToInt(subscription, sectionId, indexId); // TODO
     dbusItem.properties = {
         {QStringLiteral("children-display"), QStringLiteral("submenu")}
     };
 
-    int count = 0;
+    // for(auto property : propertyNames)
+    // {
+    //     section.
+    // }
 
     const auto itemsToBeAdded = section.items;
+    const int count = itemsToBeAdded.count();
+    int index = 0;
     for (const auto &item : itemsToBeAdded) {
-
-        DBusMenuLayoutItem child{
-            Utils::treeStructureToInt(section.id, sectionId, ++count),
-            gMenuToDBusMenuProperties(item),
-            {} // children
-        };
-        dbusItem.children.append(child);
-
         // Now resolve section aliases
         auto it = item.constFind(QStringLiteral(":section"));
         if (it != item.constEnd()) {
-
             // references another place, add it instead
             GMenuSection gmenuSection = qdbus_cast<GMenuSection>(it->value<QDBusArgument>());
-
             // remember where the item came from and give it an appropriate ID
             // so updates signalled by the app will map to the right place
             int originalSubscription = gmenuSection.subscription;
-            int originalMenu = gmenuSection.menu;
+            int originalMenu = gmenuSection.section;
 
             // TODO start subscription if we don't have it
-            auto items = m_currentMenu->getSection(gmenuSection.subscription, gmenuSection.menu).items;
+            auto items = m_currentMenu->getSection(gmenuSection.subscription, gmenuSection.section).items;
 
             // Check whether it's an alias to an alias
             // FIXME make generic/recursive
-            if (items.count() == 1) {
+            while (items.count() == 1) {
                 const auto &aliasedItem = items.constFirst();
                 auto findIt = aliasedItem.constFind(QStringLiteral(":section"));
                 if (findIt != aliasedItem.constEnd()) {
                     GMenuSection gmenuSection2 = qdbus_cast<GMenuSection>(findIt->value<QDBusArgument>());
-                    items = m_currentMenu->getSection(gmenuSection2.subscription, gmenuSection2.menu).items;
+                    items = m_currentMenu->getSection(gmenuSection2.subscription, gmenuSection2.section).items;
 
                     originalSubscription = gmenuSection2.subscription;
-                    originalMenu = gmenuSection2.menu;
+                    originalMenu = gmenuSection2.section;
+                    continue;
                 }
+
+                break;
             }
 
             int aliasedCount = 0;
             for (const auto &aliasedItem : qAsConst(items)) {
-                DBusMenuLayoutItem aliasedChild{
-                    Utils::treeStructureToInt(originalSubscription, originalMenu, ++aliasedCount),
-                    gMenuToDBusMenuProperties(aliasedItem),
-                    {} // children
-                };
+                DBusMenuLayoutItem aliasedChild{Utils::treeStructureToInt(originalSubscription, originalMenu, aliasedCount++), gMenuToDBusMenuProperties(aliasedItem), {}};
                 dbusItem.children.append(aliasedChild);
             }
+
+            if(count > 1 && index < count - 1)
+            {
+                QVariantMap result;
+                result.insert(QStringLiteral("type"), QStringLiteral("separator"));
+                result.insert(QStringLiteral("enabled"), true);
+                result.insert(QStringLiteral("visible"), true);
+
+                DBusMenuLayoutItem child{Utils::treeStructureToInt(subscription, sectionId, index), result, {}};
+                dbusItem.children.append(child);
+            }
         }
+
+        index++;
     }
 
     // revision, unused in libdbusmenuqt
@@ -665,21 +667,18 @@ QVariantMap Window::gMenuToDBusMenuProperties(const QVariantMap &source) const
         result.insert(QStringLiteral("icon-name"), icon);
     }
 
-    const QVariant target = source.value(QStringLiteral("target"));
 
-    if (actionOk) {
+    if (actionOk && !isMenu) {
         const auto actionStates = action.state;
         if (actionStates.count() == 1) {
             const auto &actionState = actionStates.first();
-            // assume this is a checkbox
-            if (!isMenu) {
-                if (actionState.type() == QVariant::Bool) {
-                    result.insert(QStringLiteral("toggle-type"), QStringLiteral("checkbox"));
-                    result.insert(QStringLiteral("toggle-state"), actionState.toBool() ? 1 : 0);
-                } else if (actionState.type() == QVariant::String) {
-                    result.insert(QStringLiteral("toggle-type"), QStringLiteral("radio"));
-                    result.insert(QStringLiteral("toggle-state"), actionState == target ? 1 : 0);
-                }
+            if (actionState.type() == QVariant::Bool) {
+                result.insert(QStringLiteral("toggle-type"), QStringLiteral("checkbox"));
+                result.insert(QStringLiteral("toggle-state"), actionState.toBool() ? 1 : 0);
+            } else if (actionState.type() == QVariant::String) {
+                const QVariant target = source.value(QStringLiteral("target"));
+                result.insert(QStringLiteral("toggle-type"), QStringLiteral("radio"));
+                result.insert(QStringLiteral("toggle-state"), actionState == target ? 1 : 0);
             }
         }
     }
