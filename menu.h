@@ -31,14 +31,14 @@ class Menu : public QObject
     Q_OBJECT
 
 public:
-    Menu(const QString &serviceName, const QString &objectPath, QObject *parent = nullptr);
+    Menu(const QString &serviceName, const QString &objectPath, bool menubar=true, QObject *parent = nullptr);
     ~Menu() override;
 
     void init();
     void cleanup();
 
     void start(uint id);
-    void stop(const QList<uint> &ids);
+    void stop(const QSet<uint> &ids);
 
     bool hasMenu() const;
     bool hasSubscription(uint subscription) const;
@@ -70,8 +70,10 @@ private:
 
     void menuChanged(const GMenuChangeList &changes);
 
+    const bool menubar;
+    QSet<uint> m_testings;
     // QSet?
-    QList<uint> m_subscriptions; // keeps track of which menu trees we're subscribed to
+    QSet<uint> m_subscriptions; // keeps track of which menu trees we're subscribed to
 
     QHash<uint, GMenuItemList> m_menus;
 

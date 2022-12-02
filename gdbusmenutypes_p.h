@@ -39,6 +39,9 @@ struct GMenuItem
     uint id;
     uint section;
     VariantMapList items;
+
+    GMenuItem(){}
+    GMenuItem(uint id, uint section, VariantMapList items) : id(id), section(section), items(items) {}
 };
 Q_DECLARE_METATYPE(GMenuItem);
 
@@ -53,6 +56,10 @@ struct GMenuSection
 {
     uint subscription;
     uint section;
+
+    GMenuSection() : GMenuSection(0, 0) {}
+
+    GMenuSection(uint sub, uint sec) : subscription(sub), section(sec) {}
 };
 Q_DECLARE_METATYPE(GMenuSection);
 

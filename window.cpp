@@ -77,7 +77,7 @@ void Window::init()
      qDebug() << "Inited window with menu for" << m_winId << "on" << m_serviceName << "at app" << m_applicationObjectPath << "win" << m_windowObjectPath << "unity" << m_unityObjectPath;
 
      if (!m_applicationMenuObjectPath.isEmpty()) {
-         m_applicationMenu = new Menu(m_serviceName, m_applicationMenuObjectPath, this);
+         m_applicationMenu = new Menu(m_serviceName, m_applicationMenuObjectPath, false, this);
          connect(m_applicationMenu, &Menu::menuAppeared, this, &Window::updateWindowProperties);
          connect(m_applicationMenu, &Menu::menuDisappeared, this, &Window::updateWindowProperties);
          connect(m_applicationMenu, &Menu::subscribed, this, &Window::onMenuSubscribed);
@@ -88,7 +88,7 @@ void Window::init()
      }
 
      if (!m_menuBarObjectPath.isEmpty()) {
-         m_menuBar = new Menu(m_serviceName, m_menuBarObjectPath, this);
+         m_menuBar = new Menu(m_serviceName, m_menuBarObjectPath, true, this);
          connect(m_menuBar, &Menu::menuAppeared, this, &Window::updateWindowProperties);
          connect(m_menuBar, &Menu::menuDisappeared, this, &Window::updateWindowProperties);
          connect(m_menuBar, &Menu::subscribed, this, &Window::onMenuSubscribed);
@@ -418,6 +418,10 @@ void Window::Event(int id, const QString &eventId, const QDBusVariant &data, uin
 
     if (eventId == QLatin1String("clicked")) {
         const QVariantMap item = m_currentMenu->getItem(id);
+
+        if(item.contains(QLatin1String(":submenu")))
+            return;
+
         const QString action = item.value(QStringLiteral("action")).toString();
         const QVariant target = item.value(QStringLiteral("target"));
         if (!action.isEmpty()) {
@@ -463,7 +467,7 @@ uint Window::GetLayout(int parentId, int recursionDepth, const QStringList &prop
     auto tmpItem = section.items.at(indexId);
     if(tmpItem.contains(QLatin1String(":submenu")))
     {
-        GMenuSection gmenuSection = qdbus_cast<GMenuSection>(tmpItem.value(QLatin1String(":submenu")));
+        GMenuSection gmenuSection = tmpItem.value(QLatin1String(":submenu")).value<GMenuSection>();
         subscription = gmenuSection.subscription;
         sectionId = gmenuSection.section;
         indexId = 0;
@@ -490,20 +494,15 @@ uint Window::GetLayout(int parentId, int recursionDepth, const QStringList &prop
         {QStringLiteral("children-display"), QStringLiteral("submenu")}
     };
 
-    // for(auto property : propertyNames)
-    // {
-    //     section.
-    // }
-
     const auto itemsToBeAdded = section.items;
     const int count = itemsToBeAdded.count();
     int index = 0;
     for (const auto &item : itemsToBeAdded) {
         // Now resolve section aliases
         auto it = item.constFind(QStringLiteral(":section"));
-        if (it != item.constEnd()) {
+        if (it != item.constEnd()) {//qDebug()<<subscription<<"\t"<<sectionId<<"\t"<<indexId<<"\t";
             // references another place, add it instead
-            GMenuSection gmenuSection = qdbus_cast<GMenuSection>(it->value<QDBusArgument>());
+            GMenuSection gmenuSection = it->value<GMenuSection>();
             // remember where the item came from and give it an appropriate ID
             // so updates signalled by the app will map to the right place
             int originalSubscription = gmenuSection.subscription;
@@ -518,7 +517,7 @@ uint Window::GetLayout(int parentId, int recursionDepth, const QStringList &prop
                 const auto &aliasedItem = items.constFirst();
                 auto findIt = aliasedItem.constFind(QStringLiteral(":section"));
                 if (findIt != aliasedItem.constEnd()) {
-                    GMenuSection gmenuSection2 = qdbus_cast<GMenuSection>(findIt->value<QDBusArgument>());
+                    GMenuSection gmenuSection2 = findIt->value<GMenuSection>();
                     items = m_currentMenu->getSection(gmenuSection2.subscription, gmenuSection2.section).items;
 
                     originalSubscription = gmenuSection2.subscription;
@@ -673,7 +672,7 @@ QVariantMap Window::gMenuToDBusMenuProperties(const QVariantMap &source) const
         if (actionStates.count() == 1) {
             const auto &actionState = actionStates.first();
             if (actionState.type() == QVariant::Bool) {
-                result.insert(QStringLiteral("toggle-type"), QStringLiteral("checkbox"));
+                result.insert(QStringLiteral("toggle-type"), QStringLiteral("checkmark"));
                 result.insert(QStringLiteral("toggle-state"), actionState.toBool() ? 1 : 0);
             } else if (actionState.type() == QVariant::String) {
                 const QVariant target = source.value(QStringLiteral("target"));
