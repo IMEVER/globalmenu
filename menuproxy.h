@@ -41,6 +41,7 @@ class MenuProxy : public QObject
 public:
     MenuProxy();
     ~MenuProxy() override;
+    void start();
 
 private Q_SLOTS:
     void onWindowAdded(WId id);
@@ -65,6 +66,8 @@ private:
     QByteArray getWindowPropertyString(WId id, const QByteArray &name);
     void writeWindowProperty(WId id, const QByteArray &name, const QByteArray &value);
     xcb_atom_t getAtom(const QByteArray &name);
+
+private:
 
     QHash<WId, Window *> m_windows;
 

@@ -63,6 +63,15 @@ MenuProxy::MenuProxy()
     , m_serviceWatcher(new QDBusServiceWatcher(this))
     , m_writeGtk2SettingsTimer(new QTimer(this))
 {
+
+}
+
+MenuProxy::~MenuProxy()
+{
+    teardown();
+}
+
+void MenuProxy::start() {
     m_serviceWatcher->setConnection(QDBusConnection::sessionBus());
     m_serviceWatcher->setWatchMode(QDBusServiceWatcher::WatchForUnregistration |
                                      QDBusServiceWatcher::WatchForRegistration);
@@ -106,11 +115,6 @@ MenuProxy::MenuProxy()
 //    m_gtk2RcWatch->addFile(gtkRc2Path());
 }
 
-MenuProxy::~MenuProxy()
-{
-    teardown();
-}
-
 bool MenuProxy::init()
 {
     enableGtkSettings(true);
@@ -122,7 +126,6 @@ bool MenuProxy::init()
     for (WId id : windows) {
         onWindowAdded(id);
     }
-
     return true;
 }
 
