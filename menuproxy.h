@@ -48,7 +48,7 @@ private Q_SLOTS:
     void onWindowRemoved(WId id);
 
 private:
-    bool init();
+    void init();
     void teardown();
 
     static QString gtkRc2Path();

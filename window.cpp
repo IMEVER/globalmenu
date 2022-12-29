@@ -410,9 +410,8 @@ void Window::Event(int id, const QString &eventId, const QDBusVariant &data, uin
 {
     Q_UNUSED(data);
 
-    if (!m_currentMenu) {
+    if (!m_currentMenu)
         return;
-    }
 
     // GMenu dbus doesn't have any "opened" or "closed" signals, we'll only handle "clicked"
 
@@ -428,14 +427,40 @@ void Window::Event(int id, const QString &eventId, const QDBusVariant &data, uin
             triggerAction(action, target, timestamp);
         }
     }
-
 }
 
 DBusMenuItemList Window::GetGroupProperties(const QList<int> &ids, const QStringList &propertyNames)
 {
-    Q_UNUSED(ids);
-    Q_UNUSED(propertyNames);
-    return DBusMenuItemList();
+    DBusMenuItemList retValues;
+
+    if(m_currentMenu && !ids.isEmpty()) {
+        for(const auto id : ids) {
+            DBusMenuItem item;
+            item.id = id;
+
+            int subscription, sectionId, indexId;
+            Utils::intToTreeStructure(id, subscription, sectionId, indexId);
+
+            if (m_currentMenu->hasSubscription(subscription)) {
+                bool ok;
+                GMenuItem section = m_currentMenu->getSection(subscription, sectionId, &ok);
+
+                if (ok && (section.items.count() > indexId)) {
+                    auto tmpItem = section.items.at(indexId);
+                    if(propertyNames.isEmpty())
+                        item.properties.insert(tmpItem);
+                    else
+                        for(const auto property : propertyNames)
+                            if(tmpItem.contains(property))
+                                item.properties.insert(property, tmpItem.value(property));
+                }
+            }
+
+            retValues.append(item);
+        }
+    }
+
+    return retValues;
 }
 
 uint Window::GetLayout(int parentId, int recursionDepth, const QStringList &propertyNames, DBusMenuLayoutItem &dbusItem)
@@ -555,9 +580,23 @@ uint Window::GetLayout(int parentId, int recursionDepth, const QStringList &prop
 
 QDBusVariant Window::GetProperty(int id, const QString &property)
 {
-    Q_UNUSED(id);
-    Q_UNUSED(property);
     QDBusVariant value;
+
+    if (m_currentMenu && !property.isEmpty()) {
+        int subscription, sectionId, indexId;
+        Utils::intToTreeStructure(id, subscription, sectionId, indexId);
+
+        if (m_currentMenu->hasSubscription(subscription)) {
+            bool ok;
+            GMenuItem section = m_currentMenu->getSection(subscription, sectionId, &ok);
+
+            if (ok && (section.items.count() > indexId)) {
+                auto tmpItem = section.items.at(indexId);
+                value.setVariant(tmpItem.value(property, ""));
+            }
+        }
+    }
+
     return value;
 }
 

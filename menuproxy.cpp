@@ -115,7 +115,7 @@ void MenuProxy::start() {
 //    m_gtk2RcWatch->addFile(gtkRc2Path());
 }
 
-bool MenuProxy::init()
+void MenuProxy::init()
 {
     enableGtkSettings(true);
 
@@ -126,7 +126,6 @@ bool MenuProxy::init()
     for (WId id : windows) {
         onWindowAdded(id);
     }
-    return true;
 }
 
 void MenuProxy::teardown()
