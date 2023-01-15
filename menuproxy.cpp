@@ -30,9 +30,7 @@
 #include <QStandardPaths>
 #include <QTimer>
 #include <QDebug>
-
 #include <KWindowSystem>
-
 #include <QX11Info>
 #include <xcb/xcb.h>
 #include <xcb/xcb_atom.h>
@@ -122,10 +120,8 @@ void MenuProxy::init()
     connect(KWindowSystem::self(), &KWindowSystem::windowAdded, this, &MenuProxy::onWindowAdded);
     connect(KWindowSystem::self(), &KWindowSystem::windowRemoved, this, &MenuProxy::onWindowRemoved);
 
-    const auto windows = KWindowSystem::windows();
-    for (WId id : windows) {
+    for (WId id : KWindowSystem::windows())
         onWindowAdded(id);
-    }
 }
 
 void MenuProxy::teardown()
@@ -324,7 +320,7 @@ void MenuProxy::onWindowRemoved(WId id)
     if(m_windows.contains(id))
     {
         this->registrar->UnregisterWindow(id);
-        delete m_windows.take(id);
+        m_windows.take(id)->deleteLater();
     }
 }
 

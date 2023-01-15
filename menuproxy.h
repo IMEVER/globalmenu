@@ -28,9 +28,7 @@
 
 class QDBusServiceWatcher;
 class QTimer;
-
 class KDirWatch;
-
 class Window;
 class DBusRegistrar;
 
@@ -78,5 +76,4 @@ private:
 
     bool m_enabled = false;
     DBusRegistrar *registrar;
-
 };

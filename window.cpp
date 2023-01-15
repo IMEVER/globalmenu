@@ -27,7 +27,6 @@
 #include <QList>
 #include <QMutableListIterator>
 #include <QVariantList>
-
 #include <algorithm>
 
 #include "actions.h"
@@ -54,23 +53,7 @@ Window::Window(const QString &serviceName)
     DBusMenuTypes_register();
 }
 
-Window::~Window()
-{
-    if(m_applicationMenu)
-        delete m_applicationMenu;
-
-    if(m_menuBar)
-        delete m_menuBar;
-
-    if(m_applicationActions)
-        delete m_applicationActions;
-
-    if(m_unityActions)
-        delete m_unityActions;
-
-    if(m_windowActions)
-        delete m_windowActions;
-}
+Window::~Window() {}
 
 void Window::init()
 {
