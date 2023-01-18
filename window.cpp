@@ -433,7 +433,7 @@ DBusMenuItemList Window::GetGroupProperties(const QList<int> &ids, const QString
                     if(propertyNames.isEmpty())
                         item.properties.insert(tmpItem);
                     else
-                        for(const auto property : propertyNames)
+                        for(auto &property : propertyNames)
                             if(tmpItem.contains(property))
                                 item.properties.insert(property, tmpItem.value(property));
                 }
