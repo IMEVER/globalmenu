@@ -33,8 +33,7 @@
 static const QString s_orgGtkMenus = QStringLiteral("org.gtk.Menus");
 static const int START_INDEX = 100;
 
-Menu::Menu(const QString &serviceName, const QString &objectPath, bool menubar, QObject *parent)
-    : QObject(parent)
+Menu::Menu(const QString &serviceName, const QString &objectPath, bool menubar, QObject *parent) : QObject(parent)
     , menubar(menubar)
     , m_serviceName(serviceName)
     , m_objectPath(objectPath)
@@ -43,11 +42,11 @@ Menu::Menu(const QString &serviceName, const QString &objectPath, bool menubar, 
     Q_ASSERT(!m_objectPath.isEmpty());
 
     if (!QDBusConnection::sessionBus().connect(m_serviceName,
-                                               m_objectPath,
-                                               s_orgGtkMenus,
-                                               QStringLiteral("Changed"),
-                                               this,
-                                               SLOT(onMenuChanged(GMenuChangeList)))) {
+                                            m_objectPath,
+                                            s_orgGtkMenus,
+                                            QStringLiteral("Changed"),
+                                            this,
+                                            SLOT(onMenuChanged(GMenuChangeList)))) {
         qDebug() << "Failed to subscribe to menu changes for" << parent << "on" << serviceName << "at" << objectPath;
     }
 }
@@ -88,9 +87,9 @@ void Menu::start(uint id)
     // dbus-send --print-reply --session --dest=:1.103 /org/libreoffice/window/104857641/menus/menubar org.gtk.Menus.Start array:uint32:0
 
     QDBusMessage msg = QDBusMessage::createMethodCall(m_serviceName,
-                                                      m_objectPath,
-                                                      s_orgGtkMenus,
-                                                      QStringLiteral("Start"));
+                                                    m_objectPath,
+                                                    s_orgGtkMenus,
+                                                    QStringLiteral("Start"));
     msg.setArguments({
         QVariant::fromValue(QList<uint>{!menubar && id == START_INDEX ? 0 :id})
     });
@@ -152,9 +151,9 @@ void Menu::start(uint id)
 void Menu::stop(const QSet<uint> &ids)
 {
     QDBusMessage msg = QDBusMessage::createMethodCall(m_serviceName,
-                                                      m_objectPath,
-                                                      s_orgGtkMenus,
-                                                      QStringLiteral("End"));
+                                                    m_objectPath,
+                                                    s_orgGtkMenus,
+                                                    QStringLiteral("End"));
     msg.setArguments({
         QVariant::fromValue(ids) // don't let it unwrap it, hence in a variant
     });
@@ -385,29 +384,23 @@ void Menu::onMenuChanged(const GMenuChangeList &changes)
 void Menu::actionsChanged(const QStringList &dirtyActions, const QString &prefix)
 {
     QSet<uint> dirtyItems;
+    QSet<QString> prefixActions;
+    for (const QString &action : dirtyActions) prefixActions.insert(prefix + action);
 
-    auto forEachMenuItem = [this, &dirtyItems](const QString prefixedAction) {
-        for (auto it = m_menus.constBegin(), end = m_menus.constEnd(); it != end; ++it) {
-            const int subscription = it.key();
+    for (auto it = m_menus.constBegin(), end = m_menus.constEnd(); it != end; ++it) {
+        const int subscription = it.key();
 
-            for (const auto &menu : it.value()) {
-                const int section = menu.section;
+        for (const auto &menu : it.value()) {
+            const int section = menu.section;
 
-                int count = 0;
-                // const auto items = menu.items;
-                for (const auto &item : menu.items) {
-                    if (Utils::itemActionName(item) == prefixedAction) {
-                        dirtyItems.insert(Utils::treeStructureToInt(subscription, section, count));
-                        return;
-                    }
-                    ++count;
-                }
+            int count = 0;
+            // const auto items = menu.items;
+            for (const auto &item : menu.items) {
+                if (prefixActions.contains(Utils::itemActionName(item)))
+                    dirtyItems.insert(Utils::treeStructureToInt(subscription, section, count));
+                ++count;
             }
         }
-    };
-
-    for (const QString &action : dirtyActions) {
-        forEachMenuItem(prefix + action);
     }
 
     if (!dirtyItems.isEmpty())

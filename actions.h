@@ -49,9 +49,9 @@ signals:
 
 private slots:
     void onActionsChanged(const QStringList &removed,
-                          const StringBoolMap &enabledChanges,
-                          const QVariantMap &stateChanges,
-                          const GMenuActionMap &added);
+                        const StringBoolMap &enabledChanges,
+                        const QVariantMap &stateChanges,
+                        const GMenuActionMap &added);
 
 private:
     GMenuActionMap m_actions;

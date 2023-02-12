@@ -29,8 +29,7 @@
 
 static const QString s_orgGtkActions = QStringLiteral("org.gtk.Actions");
 
-Actions::Actions(const QString &serviceName, const QString &objectPath, QObject *parent)
-    : QObject(parent)
+Actions::Actions(const QString &serviceName, const QString &objectPath, QObject *parent) : QObject(parent)
     , m_serviceName(serviceName)
     , m_objectPath(objectPath)
 {
@@ -38,11 +37,11 @@ Actions::Actions(const QString &serviceName, const QString &objectPath, QObject 
     Q_ASSERT(!m_objectPath.isEmpty());
 
     if (!QDBusConnection::sessionBus().connect(serviceName,
-                                               objectPath,
-                                               s_orgGtkActions,
-                                               QStringLiteral("Changed"),
-                                               this,
-                                               SLOT(onActionsChanged(QStringList,StringBoolMap,QVariantMap,GMenuActionMap)))) {
+                                            objectPath,
+                                            s_orgGtkActions,
+                                            QStringLiteral("Changed"),
+                                            this,
+                                            SLOT(onActionsChanged(QStringList,StringBoolMap,QVariantMap,GMenuActionMap)))) {
         qDebug() << "Failed to subscribe to action changes for" << parent << "on" << serviceName << "at" << objectPath;
     }
 }
@@ -52,9 +51,9 @@ Actions::~Actions() = default;
 void Actions::load()
 {
     QDBusMessage msg = QDBusMessage::createMethodCall(m_serviceName,
-                                                      m_objectPath,
-                                                      s_orgGtkActions,
-                                                      QStringLiteral("DescribeAll"));
+                                                    m_objectPath,
+                                                    s_orgGtkActions,
+                                                    QStringLiteral("DescribeAll"));
 
     QDBusPendingReply<GMenuActionMap> reply = QDBusConnection::sessionBus().asyncCall(msg);
     QDBusPendingCallWatcher *watcher = new QDBusPendingCallWatcher(reply, this);
@@ -95,15 +94,14 @@ void Actions::trigger(const QString &name, const QVariant &target, uint timestam
     }
 
     QDBusMessage msg = QDBusMessage::createMethodCall(m_serviceName,
-                                                      m_objectPath,
-                                                      s_orgGtkActions,
-                                                      QStringLiteral("Activate"));
+                                                    m_objectPath,
+                                                    s_orgGtkActions,
+                                                    QStringLiteral("Activate"));
     msg << name;
 
     QVariantList args;
-    if (target.isValid()) {
-        args << target;
-    }
+    if (target.isValid()) args << target;
+
     msg << QVariant::fromValue(args);
 
     QVariantMap platformData;
@@ -135,20 +133,18 @@ bool Actions::isValid() const
 }
 
 void Actions::onActionsChanged(const QStringList &removed,
-                               const StringBoolMap &enabledChanges,
-                               const QVariantMap &stateChanges,
-                               const GMenuActionMap &added)
+                            const StringBoolMap &enabledChanges,
+                            const QVariantMap &stateChanges,
+                            const GMenuActionMap &added)
 {
     // Collect the actions that we removed, altered, or added, so we can eventually signal changes for all menus that contain one of those actions
     QStringList dirtyActions;
 
     // TODO I bet for most of the loops below we could use a nice short std algorithm
 
-    for (const QString &removedAction : removed) {
-        if (m_actions.remove(removedAction)) {
+    for (const QString &removedAction : removed)
+        if (m_actions.remove(removedAction))
             dirtyActions.append(removedAction);
-        }
-    }
 
     for (auto it = enabledChanges.constBegin(), end = enabledChanges.constEnd(); it != end; ++it) {
         const QString &actionName = it.key();
@@ -212,7 +208,6 @@ void Actions::onActionsChanged(const QStringList &removed,
         dirtyActions.append(actionName);
     }
 
-    if (!dirtyActions.isEmpty()) {
+    if (!dirtyActions.isEmpty())
         emit actionsChanged(dirtyActions);
-    }
 }

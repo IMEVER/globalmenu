@@ -41,44 +41,40 @@ static const QString s_applicationActionsPrefix = QStringLiteral("app.");
 static const QString s_unityActionsPrefix = QStringLiteral("unity.");
 static const QString s_windowActionsPrefix = QStringLiteral("win.");
 
-Window::Window(const QString &serviceName)
-    : QObject()
+Window::Window(const QString &serviceName) : QObject()
     , m_serviceName(serviceName)
 {
     qDebug() << "Created menu on" << serviceName;
 
     Q_ASSERT(!serviceName.isEmpty());
-
-    GDBusMenuTypes_register();
-    DBusMenuTypes_register();
 }
 
 Window::~Window() {}
 
 void Window::init()
 {
-     qDebug() << "Inited window with menu for" << m_winId << "on" << m_serviceName << "at app" << m_applicationObjectPath << "win" << m_windowObjectPath << "unity" << m_unityObjectPath;
+    qDebug() << "Inited window with menu for" << m_winId << "on" << m_serviceName << "at app" << m_applicationObjectPath << "win" << m_windowObjectPath << "unity" << m_unityObjectPath;
 
-     if (!m_applicationMenuObjectPath.isEmpty()) {
-         m_applicationMenu = new Menu(m_serviceName, m_applicationMenuObjectPath, false, this);
-         connect(m_applicationMenu, &Menu::menuAppeared, this, &Window::updateWindowProperties);
-         connect(m_applicationMenu, &Menu::menuDisappeared, this, &Window::updateWindowProperties);
-         connect(m_applicationMenu, &Menu::subscribed, this, &Window::onMenuSubscribed);
-         // basically so it replies on DBus no matter what
-         connect(m_applicationMenu, &Menu::failedToSubscribe, this, &Window::onMenuSubscribed);
-         connect(m_applicationMenu, &Menu::itemsChanged, this, &Window::menuItemsChanged);
-         connect(m_applicationMenu, &Menu::menusChanged, this, &Window::menuChanged);
-     }
+    if (!m_applicationMenuObjectPath.isEmpty()) {
+        m_applicationMenu = new Menu(m_serviceName, m_applicationMenuObjectPath, false, this);
+        connect(m_applicationMenu, &Menu::menuAppeared, this, &Window::updateWindowProperties);
+        connect(m_applicationMenu, &Menu::menuDisappeared, this, &Window::updateWindowProperties);
+        connect(m_applicationMenu, &Menu::subscribed, this, &Window::onMenuSubscribed);
+        // basically so it replies on DBus no matter what
+        connect(m_applicationMenu, &Menu::failedToSubscribe, this, &Window::onMenuSubscribed);
+        connect(m_applicationMenu, &Menu::itemsChanged, this, &Window::menuItemsChanged);
+        connect(m_applicationMenu, &Menu::menusChanged, this, &Window::menuChanged);
+    }
 
-     if (!m_menuBarObjectPath.isEmpty()) {
-         m_menuBar = new Menu(m_serviceName, m_menuBarObjectPath, true, this);
-         connect(m_menuBar, &Menu::menuAppeared, this, &Window::updateWindowProperties);
-         connect(m_menuBar, &Menu::menuDisappeared, this, &Window::updateWindowProperties);
-         connect(m_menuBar, &Menu::subscribed, this, &Window::onMenuSubscribed);
-         connect(m_menuBar, &Menu::failedToSubscribe, this, &Window::onMenuSubscribed);
-         connect(m_menuBar, &Menu::itemsChanged, this, &Window::menuItemsChanged);
-         connect(m_menuBar, &Menu::menusChanged, this, &Window::menuChanged);
-     }
+    if (!m_menuBarObjectPath.isEmpty()) {
+        m_menuBar = new Menu(m_serviceName, m_menuBarObjectPath, true, this);
+        connect(m_menuBar, &Menu::menuAppeared, this, &Window::updateWindowProperties);
+        connect(m_menuBar, &Menu::menuDisappeared, this, &Window::updateWindowProperties);
+        connect(m_menuBar, &Menu::subscribed, this, &Window::onMenuSubscribed);
+        connect(m_menuBar, &Menu::failedToSubscribe, this, &Window::onMenuSubscribed);
+        connect(m_menuBar, &Menu::itemsChanged, this, &Window::menuItemsChanged);
+        connect(m_menuBar, &Menu::menusChanged, this, &Window::menuChanged);
+    }
 
     if (!m_applicationObjectPath.isEmpty()) {
         m_applicationActions = new Actions(m_serviceName, m_applicationObjectPath, this);
@@ -203,24 +199,16 @@ QString Window::proxyObjectPath() const
 
 void Window::initMenu()
 {
-    if (m_menuInited) {
-        return;
-    }
+    if (m_menuInited) return;
 
-    if (!registerDBusObject()) {
-        return;
-    }
+    if (!registerDBusObject()) return;
 
     // appmenu-gtk-module always announces a menu bar on every GTK window even if there is none
     // so we subscribe to the menu bar as soon as it shows up so we can figure out
     // if we have a menu bar, an app menu, or just nothing
-    if (m_applicationMenu) {
-        m_applicationMenu->start(0);
-    }
+    if (m_applicationMenu) m_applicationMenu->start(0);
 
-    if (m_menuBar) {
-        m_menuBar->start(0);
-    }
+    if (m_menuBar) m_menuBar->start(0);
 
     m_menuInited = true;
 }
@@ -248,11 +236,14 @@ void Window::menuItemsChanged(const QSet<uint> &itemIds)
 void Window::menuChanged(const QSet<uint> &menuIds)
 {
     if (qobject_cast<Menu*>(sender()) == m_currentMenu) {
+        QSet<int> sids;
         for (uint id : menuIds) {
             int subscription, section, index;
             Utils::intToTreeStructure(id, subscription, section, index);
-            emit LayoutUpdated(3 /*revision*/, subscription);
+            sids.insert(subscription);
         }
+        for(auto subscription : sids)
+            emit LayoutUpdated(3 /*revision*/, subscription);
     }
 }
 
@@ -282,24 +273,16 @@ void Window::onMenuSubscribed(uint id)
 bool Window::getAction(const QString &name, GMenuAction &action) const
 {
     QString lookupName;
-    Actions *actions = getActionsForAction(name, lookupName);
-
-    if (!actions) {
-        return false;
-    }
-
-    return actions->get(lookupName, action);
+    if(Actions *actions = getActionsForAction(name, lookupName))
+        return actions->get(lookupName, action);
+    return false;
 }
 
 void Window::triggerAction(const QString &name, const QVariant &target, uint timestamp)
 {
     QString lookupName;
-    Actions *actions = getActionsForAction(name, lookupName);
-    if (!actions) {
-        return;
-    }
-
-    actions->trigger(lookupName, target, timestamp);
+    if(Actions *actions = getActionsForAction(name, lookupName))
+        actions->trigger(lookupName, target, timestamp);
 }
 
 Actions *Window::getActionsForAction(const QString &name, QString &lookupName) const
@@ -352,8 +335,7 @@ bool Window::registerDBusObject()
 
 void Window::updateWindowProperties()
 {
-    const bool hasMenu = ((m_applicationMenu && m_applicationMenu->hasMenu())
-                           || (m_menuBar && m_menuBar->hasMenu()));
+    const bool hasMenu = ((m_applicationMenu && m_applicationMenu->hasMenu()) || (m_menuBar && m_menuBar->hasMenu()));
 
     if (!hasMenu) {
         emit requestRemoveWindowProperties();
@@ -393,22 +375,19 @@ void Window::Event(int id, const QString &eventId, const QDBusVariant &data, uin
 {
     Q_UNUSED(data);
 
-    if (!m_currentMenu)
-        return;
+    if (!m_currentMenu) return;
 
     // GMenu dbus doesn't have any "opened" or "closed" signals, we'll only handle "clicked"
 
     if (eventId == QLatin1String("clicked")) {
         const QVariantMap item = m_currentMenu->getItem(id);
 
-        if(item.contains(QLatin1String(":submenu")))
-            return;
+        if(item.contains(QLatin1String(":submenu"))) return;
 
         const QString action = item.value(QStringLiteral("action")).toString();
         const QVariant target = item.value(QStringLiteral("target"));
-        if (!action.isEmpty()) {
+        if (!action.isEmpty())
             triggerAction(action, target, timestamp);
-        }
     }
 }
 
@@ -604,9 +583,8 @@ QVariantMap Window::gMenuToDBusMenuProperties(const QVariantMap &source) const
     }
 
     const bool isMenu = source.contains(QLatin1String(":submenu"));
-    if (isMenu) {
+    if (isMenu)
         result.insert(QStringLiteral("children-display"), QStringLiteral("submenu"));
-    }
 
     QString accel = source.value(QStringLiteral("accel")).toString();
     if (!accel.isEmpty()) {
@@ -665,28 +643,25 @@ QVariantMap Window::gMenuToDBusMenuProperties(const QVariantMap &source) const
 
     bool visible = true;
     const QString hiddenWhen = source.value(QStringLiteral("hidden-when")).toString();
-    if (hiddenWhen == QLatin1String("action-disabled") && (!actionOk || !enabled)) {
+    if (hiddenWhen == QLatin1String("action-disabled") && (!actionOk || !enabled))
         visible = false;
-    } else if (hiddenWhen == QLatin1String("action-missing") && !actionOk) {
+    else if (hiddenWhen == QLatin1String("action-missing") && !actionOk)
         visible = false;
     // While we have Global Menu we don't have macOS menu (where Quit, Help, etc is separate)
-    } else if (hiddenWhen == QLatin1String("macos-menubar")) {
+    else if (hiddenWhen == QLatin1String("macos-menubar"))
         visible = true;
-    }
 
     result.insert(QStringLiteral("visible"), visible);
 
     QString icon = source.value(QStringLiteral("icon")).toString();
-    if (icon.isEmpty()) {
+    if (icon.isEmpty())
         icon = source.value(QStringLiteral("verb-icon")).toString();
-    }
 
     if(icon.isEmpty())
         icon = Icons::actionIcon(actionName);
 
-    if (!icon.isEmpty()) {
+    if (!icon.isEmpty())
         result.insert(QStringLiteral("icon-name"), icon);
-    }
 
 
     if (actionOk && !isMenu) {

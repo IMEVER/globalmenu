@@ -23,7 +23,6 @@
 #include <QCoreApplication>
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
-#include <QDBusServiceWatcher>
 #include <QDir>
 #include <QFileInfo>
 #include <QHash>
@@ -34,17 +33,12 @@
 #include <QX11Info>
 #include <xcb/xcb.h>
 #include <xcb/xcb_atom.h>
+#include <QMetaType>
 
+#include "menuimporter.h"
 #include "window.h"
 
-#include "../appmenu/dbus_registrar.h"
-
-static const QString s_ourServiceName = QStringLiteral("me.imever.dde.TopPanel");
-
-static const QString s_dbusMenuRegistrar = QStringLiteral("com.canonical.AppMenu.Registrar");
-
 static const QByteArray s_gtkUniqueBusName = QByteArrayLiteral("_GTK_UNIQUE_BUS_NAME");
-
 static const QByteArray s_gtkApplicationObjectPath = QByteArrayLiteral("_GTK_APPLICATION_OBJECT_PATH");
 static const QByteArray s_unityObjectPath = QByteArrayLiteral("_UNITY_OBJECT_PATH");
 static const QByteArray s_gtkWindowObjectPath = QByteArrayLiteral("_GTK_WINDOW_OBJECT_PATH");
@@ -55,84 +49,29 @@ static const QByteArray s_gtkAppMenuObjectPath = QByteArrayLiteral("_GTK_APP_MEN
 static const QString s_gtkModules = QStringLiteral("gtk-modules");
 static const QString s_appMenuGtkModule = QStringLiteral("appmenu-gtk-module");
 
-MenuProxy::MenuProxy()
-    : QObject()
+MenuProxy::MenuProxy() : QObject()
     , m_xConnection(QX11Info::connection())
-    , m_serviceWatcher(new QDBusServiceWatcher(this))
     , m_writeGtk2SettingsTimer(new QTimer(this))
 {
-
-}
-
-MenuProxy::~MenuProxy()
-{
-    teardown();
 }
 
 void MenuProxy::start() {
-    m_serviceWatcher->setConnection(QDBusConnection::sessionBus());
-    m_serviceWatcher->setWatchMode(QDBusServiceWatcher::WatchForUnregistration |
-                                     QDBusServiceWatcher::WatchForRegistration);
-    m_serviceWatcher->addWatchedService(s_dbusMenuRegistrar);
+    GDBusMenuTypes_register();
+    DBusMenuTypes_register();
 
-    connect(m_serviceWatcher, &QDBusServiceWatcher::serviceRegistered, this, [this](const QString &service) {
-        Q_UNUSED(service);
-        qDebug() << "Global menu service became available, starting";
-        init();
-    });
-    connect(m_serviceWatcher, &QDBusServiceWatcher::serviceUnregistered, this, [this](const QString &service) {
-        Q_UNUSED(service);
-        qDebug() << "Global menu service disappeared, cleaning up";
-        teardown();
-    });
+    MenuImporter::instance()->connectToBus();
 
-    // It's fine to do a blocking call here as we're a separate binary with no UI
-    if (QDBusConnection::sessionBus().interface()->isServiceRegistered(s_dbusMenuRegistrar)) {
-        qDebug() << "Global menu service is running, starting right away";
-        init();
-    } else {
-        qDebug() << "No global menu service available, waiting for it to start before doing anything";
-
-        // be sure when started to restore gtk menus when there's no dbus menu around in case we crashed
-        enableGtkSettings(false);
-    }
-
-    // kde-gtk-config just deletes and re-creates the gtkrc-2.0, watch this and add our config to it again
-    m_writeGtk2SettingsTimer->setSingleShot(true);
-    m_writeGtk2SettingsTimer->setInterval(1000);
-    connect(m_writeGtk2SettingsTimer, &QTimer::timeout, this, &MenuProxy::writeGtk2Settings);
-    registrar = new DBusRegistrar(this);
-    // auto startGtk2SettingsTimer = [this] {
-    //     if (!m_writeGtk2SettingsTimer->isActive()) {
-    //         m_writeGtk2SettingsTimer->start();
-    //     }
-    // };
-
-//    connect(m_gtk2RcWatch, &KDirWatch::created, this, startGtk2SettingsTimer);
-//    connect(m_gtk2RcWatch, &KDirWatch::dirty, this, startGtk2SettingsTimer);
-//    m_gtk2RcWatch->addFile(gtkRc2Path());
-}
-
-void MenuProxy::init()
-{
     enableGtkSettings(true);
 
     connect(KWindowSystem::self(), &KWindowSystem::windowAdded, this, &MenuProxy::onWindowAdded);
     connect(KWindowSystem::self(), &KWindowSystem::windowRemoved, this, &MenuProxy::onWindowRemoved);
 
-    for (WId id : KWindowSystem::windows())
-        onWindowAdded(id);
-}
+    for (WId id : KWindowSystem::windows()) onWindowAdded(id);
 
-void MenuProxy::teardown()
-{
-    enableGtkSettings(false);
-
-    disconnect(KWindowSystem::self(), &KWindowSystem::windowAdded, this, &MenuProxy::onWindowAdded);
-    disconnect(KWindowSystem::self(), &KWindowSystem::windowRemoved, this, &MenuProxy::onWindowRemoved);
-
-    qDeleteAll(m_windows);
-    m_windows.clear();
+    // kde-gtk-config just deletes and re-creates the gtkrc-2.0, watch this and add our config to it again
+    m_writeGtk2SettingsTimer->setSingleShot(true);
+    m_writeGtk2SettingsTimer->setInterval(1000);
+    connect(m_writeGtk2SettingsTimer, &QTimer::timeout, this, &MenuProxy::writeGtk2Settings);
 }
 
 void MenuProxy::enableGtkSettings(bool enable)
@@ -141,8 +80,6 @@ void MenuProxy::enableGtkSettings(bool enable)
 
     writeGtk2Settings();
     writeGtk3Settings();
-
-    // TODO use gconf/dconf directly or at least signal a change somehow?
 }
 
 QString MenuProxy::gtkRc2Path()
@@ -257,30 +194,24 @@ void MenuProxy::addOrRemoveAppMenuGtkModule(QStringList &list)
 
 void MenuProxy::onWindowAdded(WId id)
 {
-    if (m_windows.contains(id)) {
-        return;
-    }
+    if (m_windows.contains(id)) return;
 
-    KWindowInfo info(id, NET::WMWindowType, NET::WM2WindowClass);
-    if(!info.valid())
-        return;
+    // KWindowInfo info(id, NET::WMWindowType, NET::WM2WindowClass);
+    // if(!info.valid()) return;
 
-    NET::WindowType wType = info.windowType(NET::NormalMask | NET::DesktopMask | NET::DockMask |
-                                            NET::ToolbarMask | NET::MenuMask | NET::DialogMask |
-                                            NET::OverrideMask | NET::TopMenuMask |
-                                            NET::UtilityMask | NET::SplashMask);
+    // NET::WindowType wType = info.windowType(NET::NormalMask | NET::DesktopMask | NET::DockMask |
+    //                                         NET::ToolbarMask | NET::MenuMask | NET::DialogMask |
+    //                                         NET::OverrideMask | NET::TopMenuMask |
+    //                                         NET::UtilityMask | NET::SplashMask);
 
-    // Only top level windows typically have a menu bar, dialogs, such as settings don't
-    if (wType != NET::Normal) {
-        qDebug() << "Ignoring window class name: "<<info.windowClassName()<<", id: " << id << ", type: " << wType;
-        return;
-    }
+    // // Only top level windows typically have a menu bar, dialogs, such as settings don't
+    // if (wType != NET::Normal) {
+    //     qDebug() << "Ignoring window class name: "<<info.windowClassName()<<", id: " << id << ", type: " << wType;
+    //     return;
+    // }
 
     const QString serviceName = QString::fromUtf8(getWindowPropertyString(id, s_gtkUniqueBusName));
-
-    if (serviceName.isEmpty()) {
-        return;
-    }
+    if (serviceName.isEmpty()) return;
 
     const QString applicationObjectPath = QString::fromUtf8(getWindowPropertyString(id, s_gtkApplicationObjectPath));
     const QString unityObjectPath = QString::fromUtf8(getWindowPropertyString(id, s_unityObjectPath));
@@ -289,9 +220,7 @@ void MenuProxy::onWindowAdded(WId id)
     const QString applicationMenuObjectPath = QString::fromUtf8(getWindowPropertyString(id, s_gtkAppMenuObjectPath));
     const QString menuBarObjectPath = QString::fromUtf8(getWindowPropertyString(id, s_gtkMenuBarObjectPath));
 
-    if (applicationMenuObjectPath.isEmpty() && menuBarObjectPath.isEmpty()) {
-        return;
-    }
+    if (applicationMenuObjectPath.isEmpty() && menuBarObjectPath.isEmpty()) return;
 
     Window *window = new Window(serviceName);
     window->setWinId(id);
@@ -302,13 +231,12 @@ void MenuProxy::onWindowAdded(WId id)
     window->setMenuBarObjectPath(menuBarObjectPath);
     m_windows.insert(id, window);
 
-    connect(window, &Window::requestWriteWindowProperties, this, [this, window] {
-       Q_ASSERT(!window->proxyObjectPath().isEmpty());
-
-       this->registrar->RegisterWindow(window->winId(), QDBusObjectPath(window->proxyObjectPath()));
+    connect(window, &Window::requestWriteWindowProperties, this, [window] {
+        Q_ASSERT(!window->proxyObjectPath().isEmpty());
+        MenuImporter::instance()->RegisterWindow(window->winId(), "me.imever.dde.TopPanel", QDBusObjectPath(window->proxyObjectPath()));
     });
-    connect(window, &Window::requestRemoveWindowProperties, this, [this, window] {
-        this->registrar->UnregisterWindow(window->winId());
+    connect(window, &Window::requestRemoveWindowProperties, this, [window] {
+        MenuImporter::instance()->UnregisterWindow(window->winId());
     });
 
     window->init();
@@ -316,12 +244,8 @@ void MenuProxy::onWindowAdded(WId id)
 
 void MenuProxy::onWindowRemoved(WId id)
 {
-    // no need to cleanup() (which removes window properties) when the window is gone, delete right away
     if(m_windows.contains(id))
-    {
-        this->registrar->UnregisterWindow(id);
         m_windows.take(id)->deleteLater();
-    }
 }
 
 QByteArray MenuProxy::getWindowPropertyString(WId id, const QByteArray &name)
@@ -329,9 +253,8 @@ QByteArray MenuProxy::getWindowPropertyString(WId id, const QByteArray &name)
     QByteArray value;
 
     auto atom = getAtom(name);
-    if (atom == XCB_ATOM_NONE) {
+    if (atom == XCB_ATOM_NONE)
         return value;
-    }
 
     // GTK properties aren't XCB_ATOM_STRING but a custom one
     auto utf8StringAtom = getAtom(QByteArrayLiteral("UTF8_STRING"));

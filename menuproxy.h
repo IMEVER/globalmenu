@@ -23,14 +23,11 @@
 #include <QByteArray>
 #include <QHash>
 #include <QWindow> // for WId
-
 #include <xcb/xcb_atom.h>
 
-class QDBusServiceWatcher;
 class QTimer;
 class KDirWatch;
 class Window;
-class DBusRegistrar;
 
 class MenuProxy : public QObject
 {
@@ -38,17 +35,14 @@ class MenuProxy : public QObject
 
 public:
     MenuProxy();
-    ~MenuProxy() override;
+    ~MenuProxy()=default;
     void start();
 
-private Q_SLOTS:
+public Q_SLOTS:
     void onWindowAdded(WId id);
     void onWindowRemoved(WId id);
 
 private:
-    void init();
-    void teardown();
-
     static QString gtkRc2Path();
     static QString gtk3SettingsIniPath();
 
@@ -66,14 +60,10 @@ private:
     xcb_atom_t getAtom(const QByteArray &name);
 
 private:
-
     QHash<WId, Window *> m_windows;
-
-    QDBusServiceWatcher *m_serviceWatcher;
 
     KDirWatch *m_gtk2RcWatch;
     QTimer *m_writeGtk2SettingsTimer;
 
     bool m_enabled = false;
-    DBusRegistrar *registrar;
 };
