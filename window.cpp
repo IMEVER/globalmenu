@@ -320,11 +320,11 @@ bool Window::registerDBusObject()
 
     new DbusmenuAdaptor(this);
 
-    const QString objectPath = QStringLiteral("/MenuBar/%1").arg(QString::number(menus));
+    const QString objectPath = QStringLiteral("/me/imever/dde/TopPanel/MenuBar/%1").arg(QString::number(menus));
     qDebug() << "Registering DBus object path" << objectPath;
 
     if (!QDBusConnection::sessionBus().registerObject(objectPath, this)) {
-        qDebug() << "Failed to register object";
+        qDebug() << "Failed to register object " << objectPath;
         return false;
     }
 
